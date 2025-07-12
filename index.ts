@@ -39,6 +39,11 @@ const COUNTRY_TLDS = new Map<string, string[]>(
   ]),
 );
 
+/**
+ * Cache for last country lookup to each user
+ */
+const USERS_COUNTRY_CACHE = new Map<string, string>();
+
 function getClientIp(
   headers: IncomingHttpHeaders,
   ipFromFastify: string,
@@ -76,10 +81,10 @@ export function createServer({
     }
   }
 
-  app.get<{ Params: { userId: string } }>(
-    `/${secretUrl}/json/:userId`,
+  app.get<{ Params: { subscriptionId: string } }>(
+    `/${secretUrl}/json/:subscriptionId`,
     async (req, reply) => {
-      const { userId } = req.params;
+      const { subscriptionId } = req.params;
 
       const ip = getClientIp(req.headers, req.ip);
       console.log(ip);
@@ -89,19 +94,24 @@ export function createServer({
       } catch (err) {
         req.log.warn(`GeoIP failed for ${ip}: ${err}`);
       }
+      if (iso) USERS_COUNTRY_CACHE.set(subscriptionId, iso);
+      if (!iso && USERS_COUNTRY_CACHE.has(subscriptionId)) iso = USERS_COUNTRY_CACHE.get(subscriptionId) || '';
       const isEU = iso === 'EU';
 
       let original: any;
       try {
-        const res = await fetch(`${upstreamUrl}/${userId}`);
+        const res = await fetch(`${upstreamUrl}/${subscriptionId}`);
         if (!res.ok)
           return reply.code(res.status).send({ error: 'upstream_error' });
         original = await res.json();
 
-        // forward useful headers
+        /**
+         * Forward original headers (except content-length),
+         * like "profile-update-interval" or "subscription-userinfo"
+         * to keep original behavior
+         */
         for (const [k, v] of res.headers.entries())
-          if (!['content-length'].includes(k.toLowerCase()))
-            reply.header(k, v);
+          if (!['content-length'].includes(k.toLowerCase())) reply.header(k, v);
       } catch (err) {
         req.log.error(`Fetch failed: ${err}`);
         return reply.code(502).send({ error: 'bad_gateway' });
