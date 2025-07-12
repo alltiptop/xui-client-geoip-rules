@@ -60,6 +60,16 @@ A template is available in the `rules-template/` directory. Rule files follow th
 * **`default.json`** – fallback rules when no matching country file is found.
 * **`XX.json`** – any ISO-3166-1 alpha-2 country code, such as `de`, `nl`, `us`, etc.
 
+Example:
+
+```
+rules
+| base.json       # Before all rules
+| default.json    # Default rule if country not specified
+| gb.json         # Specific country rules
+| eu.json         # Also, it supports EU region
+```
+
 ---
 
 ## Why?
