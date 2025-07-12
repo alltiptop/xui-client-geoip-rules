@@ -1,40 +1,67 @@
 import Fastify from 'fastify';
-import type { FastifyInstance } from 'fastify';
 import { readFileSync, readdirSync } from 'fs';
 import { join, parse } from 'path';
 import dotenv from 'dotenv';
 import { lookup as ipLookup } from 'ip-location-api';
 import countries from 'world-countries';
+import type { IncomingHttpHeaders } from 'http';
 
 dotenv.config();
 
 export interface CoreOptions {
+  /** URL of the upstream 3x-ui endpoint (without trailing slash). */
   upstreamUrl: string;
+  /** Secret path segment protecting this proxy, e.g. `abc123` → `/abc123/json/:id` */
   secretUrl: string;
+  /** Directory with JSON rule presets (`RU.json`, `EU.json`, `BASE.json` …). */
   rulesDir: string;
-  directSameCountry: boolean;
+  /** Inject direct‑route rules for the requester’s own country. */
+  directSameCountry?: boolean;
+  /** Enable Fastify logger. */
   logger?: boolean;
+  /** Public Domain URL of the service. */
+  publicURL?: string;
 }
 
-/**
- * Create server instance
- * @param upstreamUrl - URL of the upstream server
- * @param secretUrl - Secret URL for the server
- * @param rulesDir - Directory containing the rules
- * @param directSameCountry - If true, the server will direct the user to the same country as the user's IP
- * @param logger - Logger instance
- * @returns Fastify instance
- */
+type PresetMap = Record<string, XrayRule[]>;
+
+interface XrayRule {
+  type: 'field';
+  ip?: string[];
+  domain?: string[];
+  outboundTag: string;
+}
+
+const COUNTRY_TLDS = new Map<string, string[]>(
+  countries.map((c) => [
+    c.cca2.toUpperCase(),
+    c.tld?.map((t) => t.replace(/^\./, '')) || [],
+  ]),
+);
+
+function getClientIp(
+  headers: IncomingHttpHeaders,
+  ipFromFastify: string,
+): string {
+  const forwarded = headers['x-forwarded-for'] as string | undefined;
+  return forwarded ? forwarded.split(',')[0].trim() : ipFromFastify;
+}
+
+function buildDomainRule(tlds: string[]): XrayRule | null {
+  if (!tlds.length) return null;
+  const pattern = `regexp:.*\\.(?:${tlds.join('|')})$`;
+  return { type: 'field', domain: [pattern], outboundTag: 'direct' };
+}
+
 export function createServer({
   upstreamUrl,
   secretUrl,
   rulesDir,
   directSameCountry = true,
   logger = true,
-}: CoreOptions): FastifyInstance {
+  publicURL,
+}: CoreOptions) {
   const app = Fastify({ logger });
-
-  type PresetMap = Record<string, any>;
   const RULE_PRESETS: PresetMap = {};
 
   for (const file of readdirSync(rulesDir).filter((f) => f.endsWith('.json'))) {
@@ -44,86 +71,91 @@ export function createServer({
         readFileSync(join(rulesDir, file), 'utf8'),
       );
       app.log.info(`Loaded rules for ${code}`);
-    } catch (e) {
-      app.log.error(`Failed to load ${file}: ${e}`);
+    } catch (err) {
+      app.log.error(`Failed to load ${file}: ${err}`);
     }
   }
 
-  app.get(`/${secretUrl}/json/:userId`, async (req, reply) => {
-    const { userId } = req.params as { userId: string };
+  app.get<{ Params: { userId: string } }>(
+    `/${secretUrl}/json/:userId`,
+    async (req, reply) => {
+      const { userId } = req.params;
 
-    /**
-     * Client IP
-     */
-    const ip =
-      (req.headers['x-forwarded-for'] as string | undefined)
-        ?.split(',')[0]
-        ?.trim() || req.ip;
-
-    const foundCountry = (await ipLookup(ip))?.country ?? '';
-    const isEU = foundCountry.toUpperCase() === 'EU';
-    const iso = foundCountry.toUpperCase();
-
-    /**
-     * Get original JSON from 3x-ui
-     */
-    const res = await fetch(`${upstreamUrl}/${userId}`);
-    if (!res.ok) return reply.code(res.status).send({ error: 'upstream_error' });
-
-    // Forward selected headers from the upstream response to the client
-    const skipHeaders = new Set(['content-length', 'content-type']);
-    for (const [key, value] of res.headers.entries()) {
-      if (!skipHeaders.has(key.toLowerCase())) {
-        reply.header(key, value);
+      const ip = getClientIp(req.headers, req.ip);
+      console.log(ip);
+      let iso = '';
+      try {
+        iso = (await ipLookup(ip))?.country?.toUpperCase() || '';
+      } catch (err) {
+        req.log.warn(`GeoIP failed for ${ip}: ${err}`);
       }
-    }
+      const isEU = iso === 'EU';
 
-    const original = await res.json();
+      let original: any;
+      try {
+        const res = await fetch(`${upstreamUrl}/${userId}`);
+        if (!res.ok)
+          return reply.code(res.status).send({ error: 'upstream_error' });
+        original = await res.json();
 
-    const foundCountryRules = RULE_PRESETS[iso] ?? RULE_PRESETS['DEFAULT'] ?? [];
-    const euRules = isEU ? RULE_PRESETS['EU'] ?? [] : [];
-    const baseRules = RULE_PRESETS['BASE'] ?? [];
-    const localDomains = countries.find((c) => c.cca2 === iso)?.tld ?? [];
-    const sameCountryRules = directSameCountry
-      ? [
-          localDomains ? {
-            domain: localDomains.map((domain) => `regexp:.*\\.${domain}$`),
-            outbounds: ['direct'],
-            type: 'field',
-          } : null,
-          {
-            ip: [`geoip:${iso}`],
-            outbounds: ['direct'],
-            type: 'field',
-          },
-        ].filter(Boolean)
-      : [];
+        // forward useful headers
+        for (const [k, v] of res.headers.entries())
+          if (!['content-length'].includes(k.toLowerCase()))
+            reply.header(k, v);
+      } catch (err) {
+        req.log.error(`Fetch failed: ${err}`);
+        return reply.code(502).send({ error: 'bad_gateway' });
+      }
 
-    const rules = [...baseRules, ...sameCountryRules, ...euRules, ...foundCountryRules];
+      const baseRules = RULE_PRESETS['BASE'] ?? [];
+      const euRules = isEU ? RULE_PRESETS['EU'] ?? [] : [];
+      const countryRules = RULE_PRESETS[iso] ?? RULE_PRESETS['DEFAULT'] ?? [];
 
-    /**
-     * Select/create rules
-     */
-    const preset = {
-      routing: {
-        domainStrategy: 'IPIfNonMatch',
-        rules,
-      },
-    };
+      const sameCountryRules: XrayRule[] = [];
+      if (iso && directSameCountry) {
+        const tldRule = buildDomainRule(COUNTRY_TLDS.get(iso) || []);
+        if (tldRule) sameCountryRules.push(tldRule);
+        sameCountryRules.push({
+          type: 'field',
+          ip: [`geoip:${iso.toLowerCase()}`],
+          outboundTag: 'direct',
+        });
+      }
 
-    /**
-     * Merge and send
-     */
-    const merged = { ...original, ...preset };
-    reply.send(JSON.stringify(merged, null, 2));
-  });
+      /**
+       * Direct rule for current service to avoid wrong routing on update
+       */
+      const directRules: XrayRule[] = publicURL
+        ? [
+            {
+              type: 'field',
+              domain: [`domain:${publicURL}`],
+              outboundTag: 'direct',
+            },
+          ]
+        : [];
 
-  /**
-   * Respond with 204 No Content for any unmatched route
-   */
-  app.setNotFoundHandler((_, reply) => {
-    reply.code(204).send();
-  });
+      const rules: XrayRule[] = [
+        ...directRules,
+        ...baseRules,
+        ...sameCountryRules,
+        ...euRules,
+        ...countryRules,
+      ];
+
+      const merged = {
+        ...original,
+        routing: {
+          domainStrategy: 'IPIfNonMatch',
+          rules,
+        },
+      };
+
+      reply.send(JSON.stringify(merged, null, 2));
+    },
+  );
+
+  app.setNotFoundHandler((_, reply) => reply.code(204).send());
 
   return app;
 }
