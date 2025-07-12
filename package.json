@@ -1,0 +1,31 @@
+{
+  "name": "geoip-3xui-rules",
+  "version": "0.1",
+  "description": "Middleware server to set routing rules by countries for XRAY",
+  "author": "alltiptop",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    "./server": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "updatedb": "cd node_modules/ip-location-api && ILA_FIELDS=country npm run updatedb"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.0",
+    "fastify": "^5.4.0",
+    "ip-location-api": "^3.0.3",
+    "world-countries": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.13"
+  }
+}

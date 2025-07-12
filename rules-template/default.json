@@ -1,0 +1,35 @@
+[
+  {
+    "outboundTag": "proxy",
+    "domain": [
+      "domain:de",
+      "domain:nl",
+      "domain:uk",
+      "domain:eu"
+    ],
+    "enabled": true,
+    "remarks": "VPN source domains"
+  },
+  {
+    "outboundTag": "direct",
+    "ip": [
+      "geoip:private"
+    ],
+    "enabled": true,
+    "remarks": "Private IP"
+  },
+  {
+    "outboundTag": "direct",
+    "domain": [
+      "geosite:private"
+    ],
+    "enabled": true,
+    "remarks": "Private"
+  },
+  {
+    "port": "0-65535",
+    "outboundTag": "direct",
+    "enabled": true,
+    "remarks": "default"
+  }
+]

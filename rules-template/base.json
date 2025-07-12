@@ -1,0 +1,33 @@
+[
+  {
+    "ip": [
+      "geoip:private"
+    ],
+    "outboundTag": "direct",
+    "type": "field",
+    "remarks": "Direct Private"
+  },
+  {
+    "protocol": [
+      "bittorrent"
+    ],
+    "outboundTag": "direct",
+    "type": "field",
+    "remarks": "Direct Bittorrent"
+  },
+  {
+    "outboundTag": "block",
+    "domain": [
+      "geosite:category-ads-all"
+    ],
+    "type": "field",
+    "remarks": "Block ads"
+  },
+  {
+    "port": "443",
+    "network": "udp",
+    "outboundTag": "block",
+    "enabled": true,
+    "remarks": "Block udp 443 to prevent dns leak"
+  }
+]
