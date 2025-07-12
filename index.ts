@@ -111,7 +111,8 @@ export function createServer({
          * to keep original behavior
          */
         for (const [k, v] of res.headers.entries())
-          if (!['content-length'].includes(k.toLowerCase())) reply.header(k, v);
+          if (!['content-length'].includes(k.toLowerCase()))
+            reply.header(k, v);
       } catch (err) {
         req.log.error(`Fetch failed: ${err}`);
         return reply.code(502).send({ error: 'bad_gateway' });
