@@ -3,7 +3,6 @@ import { readFileSync, readdirSync } from 'fs';
 import { join, parse } from 'path';
 import { lookup as ipLookup } from 'ip-location-api';
 import countries from 'world-countries';
-import type { IncomingHttpHeaders } from 'http';
 
 import { CoreOptions } from '.';
 
@@ -29,7 +28,7 @@ const COUNTRY_TLDS = new Map<string, string[]>(
 const USERS_COUNTRY_CACHE = new Map<string, string>();
 
 function getClientIp(
-  headers: IncomingHttpHeaders,
+  headers: Record<string, string | string[] | undefined>,
   ipFromFastify: string,
 ): string {
   const forwarded = headers['x-forwarded-for'] as string | undefined;

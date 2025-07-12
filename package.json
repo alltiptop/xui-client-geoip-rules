@@ -22,23 +22,27 @@
   "author": "alltiptop",
   "type": "module",
   "exports": {
-    "./index": "./index.ts"
+    "./index": "./index.ts",
+    "./index.d.ts": "./index.d.ts"
   },
   "main": "./index.ts",
   "types": "./index.d.ts",
   "files": [
-    "index.ts"
+    "index.ts",
+    "index.d.ts"
   ],
   "scripts": {
     "updatedb": "cd node_modules/ip-location-api && ILA_FIELDS=country npm run updatedb"
   },
   "dependencies": {
     "fastify": "^5.4.0",
+    "fs": "^0.0.1-security",
     "ip-location-api": "^3.0.3",
+    "path": "^0.12.7",
     "world-countries": "^5.1.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.13"
+    "@types/node": "^24.0.13"
   },
   "engines": {
     "node": ">=24"
