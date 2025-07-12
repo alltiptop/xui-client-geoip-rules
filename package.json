@@ -1,13 +1,26 @@
 {
-  "name": "geoip-3xui-rules",
-  "version": "0.1",
+  "name": "@alltiptop/geoip-3xui-rules",
+  "version": "0.1.0",
   "description": "Middleware server to set routing rules by countries for XRAY",
-  "author": "alltiptop",
-  "license": "MIT",
-  "type": "module",
-  "engines": {
-    "node": ">=24"
+  "keywords": [
+    "3x-ui",
+    "xray",
+    "geoip",
+    "vpn",
+    "routing",
+    "nodejs"
+  ],
+  "homepage": "https://github.com/alltiptop/xui-client-geoip-rules#readme",
+  "bugs": {
+    "url": "https://github.com/alltiptop/xui-client-geoip-rules/issues"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alltiptop/xui-client-geoip-rules.git"
+  },
+  "license": "MIT",
+  "author": "alltiptop",
+  "type": "module",
   "exports": {
     "./server": "./dist/index.js"
   },
@@ -27,5 +40,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.13"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }
