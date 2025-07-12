@@ -22,18 +22,17 @@
   "author": "alltiptop",
   "type": "module",
   "exports": {
-    "./server": "./dist/index.js"
+    "./index": "./index.ts"
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./index.ts",
+  "types": "./index.d.ts",
   "files": [
-    "dist"
+    "index.ts"
   ],
   "scripts": {
     "updatedb": "cd node_modules/ip-location-api && ILA_FIELDS=country npm run updatedb"
   },
   "dependencies": {
-    "dotenv": "^17.2.0",
     "fastify": "^5.4.0",
     "ip-location-api": "^3.0.3",
     "world-countries": "^5.1.0"
