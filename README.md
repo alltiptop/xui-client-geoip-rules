@@ -14,19 +14,7 @@ Examples:
 *npm*
 
 ```bash
-npm install xui-json-client-rules
-```
-
-*yarn*
-
-```bash
-yarn add xui-json-client-rules
-```
-
-*pnpm*
-
-```bash
-pnpm add xui-json-client-rules
+npm i @alltiptop/geoip-3xui-rules
 ```
 
 ---
