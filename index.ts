@@ -1,5 +1,5 @@
 import Fastify from 'fastify';
-import { readFileSync, readdirSync } from 'fs';
+import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join, parse } from 'path';
 import { lookup as ipLookup } from 'ip-location-api';
 import countries from 'world-countries';
@@ -36,7 +36,9 @@ function getClientIp(
 
 function buildDomainRule(tlds: string[]): XrayRule | null {
   if (!tlds.length) return null;
-  const pattern = `regexp:.*\\.(?:${tlds.map(t => punycode.toASCII(t)).join('|')})$`;
+  const pattern = `regexp:.*\\.(?:${tlds
+    .map((domainSuffix) => punycode.toASCII(domainSuffix))
+    .join('|')})$`;
   return { type: 'field', domain: [pattern], outboundTag: 'direct' };
 }
 
@@ -58,33 +60,61 @@ export interface CoreOptions {
 export function createServer({
   upstreamUrl,
   secretUrl,
-  rulesDir,
+  rulesDir = 'rules',
   directSameCountry = true,
   logger = true,
   publicURL,
 }: CoreOptions) {
   const app = Fastify({ logger });
   const RULE_PRESETS: PresetMap = {};
+  const TAGS_PRESETS: PresetMap = {};
 
-  for (const file of readdirSync(rulesDir).filter((f) => f.endsWith('.json'))) {
-    const code = parse(file).name.toUpperCase();
-    try {
-      RULE_PRESETS[code] = JSON.parse(
-        readFileSync(join(rulesDir, file), 'utf8'),
-      );
-      app.log.info(`Loaded rules for ${code}`);
-    } catch (err) {
-      app.log.error(`Failed to load ${file}: ${err}`);
+  if (existsSync(rulesDir)) {
+    for (const file of readdirSync(rulesDir).filter((f) =>
+      f.endsWith('.json'),
+    )) {
+      const code = parse(file).name.toUpperCase();
+      try {
+        RULE_PRESETS[code] = JSON.parse(
+          readFileSync(join(rulesDir, file), 'utf8'),
+        );
+        app.log.info(`Loaded rules for ${code}`);
+      } catch (err) {
+        app.log.error(`Failed to load ${file}: ${err}`);
+      }
     }
+  }
+
+  const tagsDir = join(rulesDir, 'tags');
+  if (existsSync(tagsDir)) {
+    for (const file of readdirSync(tagsDir).filter((f) =>
+      f.endsWith('.json'),
+    )) {
+      const code = parse(file).name;
+      try {
+        TAGS_PRESETS[code] = JSON.parse(
+          readFileSync(join(tagsDir, file), 'utf8'),
+        );
+        app.log.info(`Loaded tags for ${code}`);
+      } catch (err) {
+        app.log.error(`Failed to load ${file}: ${err}`);
+      }
+    }
+  } else {
+    app.log.info('No tags directory found – skipping tag presets');
   }
 
   app.get<{ Params: { subscriptionId: string } }>(
     `/${secretUrl}/json/:subscriptionId`,
     async (req, reply) => {
       const { subscriptionId } = req.params;
+      const { tags } = req.query as { tags?: string[] | string };
+
+      const tagsList =
+        ((Array.isArray(tags) ? tags : (tags?.split(',') || [])).filter(Boolean) as string[]) ||
+        [];
 
       const ip = getClientIp(req.headers, req.ip);
-      console.log(ip);
       let iso = '';
       try {
         iso = (await ipLookup(ip))?.country?.toUpperCase() || '';
@@ -92,7 +122,8 @@ export function createServer({
         req.log.warn(`GeoIP failed for ${ip}: ${err}`);
       }
       if (iso) USERS_COUNTRY_CACHE.set(subscriptionId, iso);
-      if (!iso && USERS_COUNTRY_CACHE.has(subscriptionId)) iso = USERS_COUNTRY_CACHE.get(subscriptionId) || '';
+      if (!iso && USERS_COUNTRY_CACHE.has(subscriptionId))
+        iso = USERS_COUNTRY_CACHE.get(subscriptionId) || '';
       const isEU = iso === 'EU';
 
       let original: any;
@@ -108,8 +139,7 @@ export function createServer({
          * to keep original behavior
          */
         for (const [k, v] of res.headers.entries())
-          if (!['content-length'].includes(k.toLowerCase()))
-            reply.header(k, v);
+          if (!['content-length'].includes(k.toLowerCase())) reply.header(k, v);
       } catch (err) {
         req.log.error(`Fetch failed: ${err}`);
         return reply.code(502).send({ error: 'bad_gateway' });
@@ -118,6 +148,10 @@ export function createServer({
       const baseRules = RULE_PRESETS['BASE'] ?? [];
       const euRules = isEU ? RULE_PRESETS['EU'] ?? [] : [];
       const countryRules = RULE_PRESETS[iso] ?? RULE_PRESETS['DEFAULT'] ?? [];
+      const tagsRules = tagsList
+        .map((tag) => TAGS_PRESETS[tag])
+        .filter(Boolean)
+        .flat();
 
       const sameCountryRules: XrayRule[] = [];
       if (iso && directSameCountry) {
@@ -146,6 +180,7 @@ export function createServer({
       const rules: XrayRule[] = [
         ...directRules,
         ...baseRules,
+        ...tagsRules,
         ...sameCountryRules,
         ...euRules,
         ...countryRules,

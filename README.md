@@ -47,16 +47,43 @@ A template is available in the `rules-template/` directory. Rule files follow th
 * **`base.json`** – applied first, before any country-specific rules.
 * **`default.json`** – fallback rules when no matching country file is found.
 * **`XX.json`** – any ISO-3166-1 alpha-2 country code, such as `de`, `nl`, `us`, etc.
+* **`tags/<tag>.json`** – optional tag-specific presets. They are applied when the client adds `?tags=<tag>` to the URL. Multiple tags can be passed either as `?tags=tag1&tags=tag2` or as a comma list `?tags=tag1,tag2`.
 
-Example:
+### Tag presets (optional)
 
+Need another layer of customization besides country-based rules?  Create a sub-folder `rules/tags/` and drop JSON files there — one file per tag. The file name (without extension) becomes the tag keyword.
+
+For instance, `rules/tags/google.json` will be merged into the response whenever the request URL contains `?tags=google`.  You can specify several tags at once:
+
+```text
+.../json/<id>?tags=google,office
 ```
+
+Tags are resolved **before** the country-specific rules, so you can still override them later if required.
+
+Example directory layout:
+
+```text
 rules
-| base.json       # Before all rules
-| default.json    # Default rule if country not specified
-| gb.json         # Specific country rules
-| eu.json         # Also, it supports EU region
+├ base.json        # Global baseline rules (applied first)
+├ default.json     # Fallback when no country match
+├ gb.json          # Country preset (United Kingdom)
+├ eu.json          # Regional preset (European Union)
+└ tags/
+   ├ google.json   # Applies with ?tags=google
+   └ office.json   # Applies with ?tags=office
 ```
+
+### Rule application order
+
+The resulting `routing.rules` array is assembled in the sequence below (earlier entries have higher priority):
+
+1. **Direct rule** – Routes requests to `publicURL` directly to avoid geo-misdetection during self-updates.
+2. **`base.json`** – Global baseline that applies to everyone.
+3. **Tag presets** – All matching files from `rules/tags/*` requested via the `?tags=` query parameter.
+4. **Same-country rules** – If `directSameCountry` is enabled, traffic destined to the client’s own country goes direct.
+5. **`eu.json`** – Regional rules for clients located in the European Union.
+6. **Country preset** – The specific ISO-3166 country file (e.g. `us.json`, `de.json`), or `default.json` when none exists.
 
 ---
 
