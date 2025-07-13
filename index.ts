@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from 'fs';
 import { join, parse } from 'path';
 import { lookup as ipLookup } from 'ip-location-api';
 import countries from 'world-countries';
+import punycode from 'punycode';
 
 type PresetMap = Record<string, XrayRule[]>;
 
@@ -35,7 +36,7 @@ function getClientIp(
 
 function buildDomainRule(tlds: string[]): XrayRule | null {
   if (!tlds.length) return null;
-  const pattern = `regexp:.*\\.(?:${tlds.join('|')})$`;
+  const pattern = `regexp:.*\\.(?:${tlds.map(t => punycode.toASCII(t)).join('|')})$`;
   return { type: 'field', domain: [pattern], outboundTag: 'direct' };
 }
 

@@ -30,7 +30,7 @@ dotenv.config();
 const app = createServer({
   upstreamUrl: process.env.UPSTREAM_URL!,   // URL of your 3x-ui instance
   secretUrl: process.env.SECRET_URL!,       // Secret path segment to hide the endpoint
-  directSameCountry,                        // Direct same country
+  directSameCountry: true,                  // Direct same country as user by ip and domain
   rulesDir: 'rules',                        // Directory containing JSON rules
   logger: process.env.NODE_ENV !== 'production'
 });

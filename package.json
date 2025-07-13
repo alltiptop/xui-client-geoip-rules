@@ -30,7 +30,10 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist", "rules-template"],
+  "files": [
+    "dist",
+    "rules-template"
+  ],
   "scripts": {
     "prepublishOnly": "tsc -p tsconfig.build.json",
     "updatedb": "cd node_modules/ip-location-api && ILA_FIELDS=country npm run updatedb"
@@ -38,10 +41,12 @@
   "dependencies": {
     "fastify": "^5.4.0",
     "ip-location-api": "^3.0.3",
+    "punycode": "^2.3.1",
     "world-countries": "^5.1.0"
   },
   "devDependencies": {
-    "@types/node": "^24.0.13"
+    "@types/node": "^24.0.13",
+    "@types/punycode": "^2.1.4"
   },
   "engines": {
     "node": ">=24"
