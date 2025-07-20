@@ -188,6 +188,7 @@ export function createServer({
 
       const merged = {
         ...original,
+        remarks: `${original.remarks}${iso ? ` (${countries.find((c) => c.cca2 === iso)?.name.common})` : ''}`,
         routing: {
           domainStrategy: 'IPIfNonMatch',
           rules,
