@@ -49,6 +49,8 @@ export interface CoreOptions {
   secretUrl: string;
   /** Directory with JSON rule presets (`RU.json`, `EU.json`, `BASE.json` …). */
   rulesDir: string;
+  /** Directory with JSON overrides presets (`RU.json`, `EU.json`, `BASE.json` …). */
+  overridesDir?: string;
   /** Inject direct‑route rules for the requester’s own country. */
   directSameCountry?: boolean;
   /** Enable Fastify logger. */
@@ -61,12 +63,14 @@ export function createServer({
   upstreamUrl,
   secretUrl,
   rulesDir = 'rules',
+  overridesDir = 'overrides',
   directSameCountry = true,
   logger = true,
   publicURL,
 }: CoreOptions) {
   const app = Fastify({ logger });
   const RULE_PRESETS: PresetMap = {};
+  const OVERRIDE_PRESETS: PresetMap = {};
   const TAGS_PRESETS: PresetMap = {};
 
   if (existsSync(rulesDir)) {
@@ -79,6 +83,22 @@ export function createServer({
           readFileSync(join(rulesDir, file), 'utf8'),
         );
         app.log.info(`Loaded rules for ${code}`);
+      } catch (err) {
+        app.log.error(`Failed to load ${file}: ${err}`);
+      }
+    }
+  }
+
+  if (existsSync(overridesDir)) {
+    for (const file of readdirSync(overridesDir).filter((f) =>
+      f.endsWith('.json'),
+    )) {
+      const code = parse(file).name.toUpperCase();
+      try {
+        OVERRIDE_PRESETS[code] = JSON.parse(
+          readFileSync(join(overridesDir, file), 'utf8'),
+        );
+        app.log.info(`Loaded overrides for ${code}`);
       } catch (err) {
         app.log.error(`Failed to load ${file}: ${err}`);
       }
@@ -188,6 +208,7 @@ export function createServer({
 
       const merged = {
         ...original,
+        ...(OVERRIDE_PRESETS[iso] ?? OVERRIDE_PRESETS['DEFAULT'] ?? {}),
         remarks: `${original.remarks}${iso ? ` (${countries.find((c) => c.cca2 === iso)?.name.common})` : ''}`,
         routing: {
           domainStrategy: 'IPIfNonMatch',

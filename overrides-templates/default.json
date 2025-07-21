@@ -1,0 +1,13 @@
+{
+  "dns": {
+    "servers": [
+      "https://dns.quad9.net:443/dns-query",
+      "https://dns.google:443/dns-query",
+      "1.0.0.1"
+    ],
+    "queryStrategy": "UseIP",
+    "detour": "direct",
+    "disableCache": true,
+    "tag": "dns_out"
+  }
+}

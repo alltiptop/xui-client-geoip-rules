@@ -141,3 +141,4 @@ vite.config.ts.timestamp-*
 # Project gitignore
 rules
 server.ts
+overrides
