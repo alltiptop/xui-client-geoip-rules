@@ -5,7 +5,7 @@ import { lookup as ipLookup } from 'ip-location-api';
 import countries from 'world-countries';
 import punycode from 'punycode';
 
-import { get3xui, type XuiOptions } from './3xuiApi.ts';
+import { get3xui, type XuiOptions } from './3xuiApi.js';
 
 type PresetMap = Record<string, XrayRule[]>;
 
