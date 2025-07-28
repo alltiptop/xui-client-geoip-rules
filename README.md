@@ -55,9 +55,19 @@ Need another layer of customization besides country-based rules?  Create a sub-f
 
 For instance, `rules/tags/google.json` will be merged into the response whenever the request URL contains `?tags=google`.  You can specify several tags at once:
 
+#### Query param:
+
 ```text
 .../json/<id>?tags=google,office
 ```
+
+#### 3X-UI user comment:
+
+```text
+comment: "tags=google,office;"
+```
+
+> Separator is ";" or new line
 
 Tags are resolved **before** the country-specific rules, so you can still override them later if required.
 

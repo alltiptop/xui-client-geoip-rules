@@ -5,6 +5,8 @@ import { lookup as ipLookup } from 'ip-location-api';
 import countries from 'world-countries';
 import punycode from 'punycode';
 
+import { get3xui, type XuiOptions } from './3xuiApi.ts';
+
 type PresetMap = Record<string, XrayRule[]>;
 
 interface XrayRule {
@@ -57,9 +59,11 @@ export interface CoreOptions {
   logger?: boolean;
   /** Public Domain URL of the service. */
   publicURL?: string;
+  /** Options for the 3x-ui panel. */
+  xuiOptions?: XuiOptions;
 }
 
-export function createServer({
+export async function createServer({
   upstreamUrl,
   secretUrl,
   rulesDir = 'rules',
@@ -67,11 +71,17 @@ export function createServer({
   directSameCountry = true,
   logger = true,
   publicURL,
+  xuiOptions,
 }: CoreOptions) {
   const app = Fastify({ logger });
   const RULE_PRESETS: PresetMap = {};
   const OVERRIDE_PRESETS: PresetMap = {};
   const TAGS_PRESETS: PresetMap = {};
+  const { getUserTags } = xuiOptions
+    ? await get3xui(xuiOptions)
+    : {
+      getUserTags: () => '',
+    };
 
   if (existsSync(rulesDir)) {
     for (const file of readdirSync(rulesDir).filter((f) =>
@@ -134,6 +144,10 @@ export function createServer({
         ((Array.isArray(tags) ? tags : (tags?.split(',') || [])).filter(Boolean) as string[]) ||
         [];
 
+      const userTags = getUserTags(subscriptionId);
+
+      const activeTags = [...new Set([...tagsList, ...userTags])];
+
       const ip = getClientIp(req.headers, req.ip);
       let iso = '';
       try {
@@ -168,7 +182,7 @@ export function createServer({
       const baseRules = RULE_PRESETS['BASE'] ?? [];
       const euRules = isEU ? RULE_PRESETS['EU'] ?? [] : [];
       const countryRules = RULE_PRESETS[iso] ?? RULE_PRESETS['DEFAULT'] ?? [];
-      const tagsRules = tagsList
+      const tagsRules = activeTags
         .map((tag) => TAGS_PRESETS[tag])
         .filter(Boolean)
         .flat();

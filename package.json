@@ -1,6 +1,6 @@
 {
   "name": "@alltiptop/geoip-3xui-rules",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Middleware server to set routing rules by countries for XRAY",
   "keywords": [
     "3x-ui",
@@ -39,6 +39,8 @@
     "updatedb": "cd node_modules/ip-location-api && ILA_FIELDS=country npm run updatedb"
   },
   "dependencies": {
+    "3x-ui": "^2.1.1",
+    "chalk": "^5.4.1",
     "fastify": "^5.4.0",
     "ip-location-api": "^3.0.3",
     "punycode": "^2.3.1",
@@ -46,7 +48,8 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.13",
-    "@types/punycode": "^2.1.4"
+    "@types/punycode": "^2.1.4",
+    "esbuild": "^0.25.8"
   },
   "engines": {
     "node": ">=24"
