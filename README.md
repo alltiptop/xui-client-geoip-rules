@@ -27,12 +27,19 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const app = createServer({
-  upstreamUrl: process.env.UPSTREAM_URL!,   // URL of your 3x-ui instance
-  secretUrl: process.env.SECRET_URL!,       // Secret path segment to hide the endpoint
-  directSameCountry: true,                  // Direct same country as user by ip and domain
-  rulesDir: 'rules',                        // Directory containing JSON rules
+const app = await createServer({
+  upstreamUrl: process.env.UPSTREAM_URL!,     // URL of your 3x-ui instance
+  secretUrl: process.env.SECRET_URL!,         // Secret path segment to hide the endpoint
+  directSameCountry: true,                    // Direct same country as user by ip and domain
+  rulesDir: 'rules',                          // Directory containing JSON rules
   logger: process.env.NODE_ENV !== 'production'
+  xuiOptions: {                               // Opional settings for 3x-ui panel api
+    panelAddress: process.env.XUI_PANEL_URL,  // 3x-ui panel address
+    username: process.env.XUI_PANEL_LOGIN,    // 3x-ui login
+    password: process.env.XUI_PANEL_PASSWORD, // 3x-ui password
+    inboundIds: [process.env.XUI_INBOUND_ID], // inbounds list for users
+    debug: process.env.NODE_ENV !== 'production',
+  },
 });
 
 app.listen({ port: 3088, host: '0.0.0.0' });
@@ -47,53 +54,54 @@ A template is available in the `rules-template/` directory. Rule files follow th
 * **`base.json`** – applied first, before any country-specific rules.
 * **`default.json`** – fallback rules when no matching country file is found.
 * **`XX.json`** – any ISO-3166-1 alpha-2 country code, such as `de`, `nl`, `us`, etc.
-* **`tags/<tag>.json`** – optional tag-specific presets. They are applied when the client adds `?tags=<tag>` to the URL. Multiple tags can be passed either as `?tags=tag1&tags=tag2` or as a comma list `?tags=tag1,tag2`.
+* **`tags/<tag>/base.json`** – mandatory file, applied first for every visitor who activates this tag.
+* **`tags/<tag>/default.json`** – fallback for the tag when there is no country-specific override.
+* **`tags/<tag>/<ISO>.json`** – tag override for a particular country (ISO-3166-1 alpha-2).  Example: `tags/streaming/US.json`.
 
 ### Tag presets (optional)
 
-Need another layer of customization besides country-based rules?  Create a sub-folder `rules/tags/` and drop JSON files there — one file per tag. The file name (without extension) becomes the tag keyword.
-
-For instance, `rules/tags/google.json` will be merged into the response whenever the request URL contains `?tags=google`.  You can specify several tags at once:
-
-#### Query param:
+Tags let you quickly switch additional rule-packs on/off without creating separate subscriptions.  A tag becomes **active** when it is present **either** in the request URL **or** in the user’s comment inside 3x-ui:
 
 ```text
-.../json/<id>?tags=google,office
+GET /<secret>/json/<subId>?tags=gaming,streaming    ← query parameter (comma list or repeated key)
+
+// 3x-ui › User › comment field
+tags=gaming,streaming; another=data                  ← semicolon/new-line separated, case-insensitive
 ```
 
-#### 3X-UI user comment:
+The backend merges both sources, removes duplicates, then processes every active tag in the order they were discovered.
 
-```text
-comment: "tags=google,office;"
-```
-
-> Separator is ";" or new line
-
-Tags are resolved **before** the country-specific rules, so you can still override them later if required.
-
-Example directory layout:
+Create a directory per tag under `rules/tags/`.  The directory **must** contain `base.json`, and **optionally** `default.json` plus any number of country overrides:
 
 ```text
 rules
 ├ base.json        # Global baseline rules (applied first)
 ├ default.json     # Fallback when no country match
-├ gb.json          # Country preset (United Kingdom)
+├ us.json          # Country preset (USA)
 ├ eu.json          # Regional preset (European Union)
-└ tags/
-   ├ google.json   # Applies with ?tags=google
-   └ office.json   # Applies with ?tags=office
+└─ tags/
+   └─ streaming/
+      ├─ base.json      # always loaded first
+      ├─ default.json   # used when visitor’s country has no override
+      ├─ us.json        # overrides for United States
+      └─ de.json        # overrides for Germany
 ```
 
-### Rule application order
+File loading order **per tag** (case-insensitive file names):
+1. `base.json` – always first.
+2. `XX.json` – matching the visitor’s ISO-3166 country code (e.g. `us.json`).
+3. `default.json` – only when a country file is **not** found.
 
-The resulting `routing.rules` array is assembled in the sequence below (earlier entries have higher priority):
+This allows you to keep shared logic in **base** while adding country-specific tweaks only where necessary.
+
+### Rule application order (updated)
 
 1. **Direct rule** – Routes requests to `publicURL` directly to avoid geo-misdetection during self-updates.
-2. **`base.json`** – Global baseline that applies to everyone.
-3. **Tag presets** – All matching files from `rules/tags/*` requested via the `?tags=` query parameter.
+2. **`base.json`** – Global baseline for everyone.
+3. **Tag presets** – For every active tag: `base.json` → country override (or `default.json`).
 4. **Same-country rules** – If `directSameCountry` is enabled, traffic destined to the client’s own country goes direct.
-5. **`eu.json`** – Regional rules for clients located in the European Union.
-6. **Country preset** – The specific ISO-3166 country file (e.g. `us.json`, `de.json`), or `default.json` when none exists.
+5. **Regional preset** – `eu.json` for EU visitors.
+6. **Country preset** – Specific country file (e.g. `us.json`), or `default.json` when none exists.
 
 ---
 

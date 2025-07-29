@@ -17,6 +17,8 @@ export interface XuiOptions {
   password: string;
   /** Intbound ID of the 3x-ui panel. */
   inboundIds: number[];
+  /** Debug mode. */
+  debug?: boolean;
 }
 
 export const get3xui = async ({
@@ -24,13 +26,14 @@ export const get3xui = async ({
   username,
   password,
   inboundIds,
+  debug = false,
 }: XuiOptions) => {
   try {
     const api = new XuiApi(
       `https://${username}:${password}@${panelAddress.split('://')[1]}`,
     );
     const inbound = await api.getInbounds();
-    api.debug = false;
+    api.debug = debug;
     api.stdTTL = 30;
 
     const getUserTags = (subscriptionId: string) => {
@@ -105,6 +108,12 @@ function buildDomainRule(tlds: string[]): XrayRule | null {
   return { type: 'field', domain: [pattern], outboundTag: 'direct' };
 }
 
+interface TagPreset {
+  base: XrayRule[];
+  default: XrayRule[];
+  country: Record<string, XrayRule[]>;
+}
+
 export interface CoreOptions {
   /** URL of the upstream 3x-ui endpoint (without trailing slash). */
   upstreamUrl: string;
@@ -137,7 +146,8 @@ export async function createServer({
   const app = Fastify({ logger });
   const RULE_PRESETS: PresetMap = {};
   const OVERRIDE_PRESETS: PresetMap = {};
-  const TAGS_PRESETS: PresetMap = {};
+
+  const TAGS_PRESETS: Record<string, TagPreset> = {};
   const { getUserTags } = xuiOptions
     ? await get3xui(xuiOptions)
     : {
@@ -178,18 +188,43 @@ export async function createServer({
 
   const tagsDir = join(rulesDir, 'tags');
   if (existsSync(tagsDir)) {
-    for (const file of readdirSync(tagsDir).filter((f) =>
-      f.endsWith('.json'),
-    )) {
-      const code = parse(file).name;
-      try {
-        TAGS_PRESETS[code] = JSON.parse(
-          readFileSync(join(tagsDir, file), 'utf8'),
-        );
-        app.log.info(`Loaded tags for ${code}`);
-      } catch (err) {
-        app.log.error(`Failed to load ${file}: ${err}`);
+    for (const dirent of readdirSync(tagsDir, { withFileTypes: true })) {
+      if (!dirent.isDirectory()) continue;
+      const tagName = dirent.name;
+      const tagPath = join(tagsDir, tagName);
+      const preset: TagPreset = { base: [], default: [], country: {} };
+
+      const baseFile = join(tagPath, 'base.json');
+      if (existsSync(baseFile)) {
+        try {
+          preset.base = JSON.parse(readFileSync(baseFile, 'utf8'));
+        } catch (err) {
+          app.log.error(`Failed to load ${baseFile}: ${err}`);
+        }
       }
+
+      const defaultFile = join(tagPath, 'default.json');
+      if (existsSync(defaultFile)) {
+        try {
+          preset.default = JSON.parse(readFileSync(defaultFile, 'utf8'));
+        } catch (err) {
+          app.log.error(`Failed to load ${defaultFile}: ${err}`);
+        }
+      }
+
+      for (const file of readdirSync(tagPath).filter(
+        (f) => f.endsWith('.json') && !['base.json', 'default.json'].includes(f),
+      )) {
+        const code = parse(file).name.toUpperCase();
+        try {
+          preset.country[code] = JSON.parse(readFileSync(join(tagPath, file), 'utf8'));
+        } catch (err) {
+          app.log.error(`Failed to load ${file}: ${err}`);
+        }
+      }
+
+      TAGS_PRESETS[tagName] = preset;
+      app.log.info(`Loaded tag preset ${tagName}`);
     }
   } else {
     app.log.info('No tags directory found – skipping tag presets');
@@ -207,7 +242,7 @@ export async function createServer({
 
       const userTags = getUserTags(subscriptionId);
 
-      const activeTags = [...new Set([...tagsList, ...userTags])];
+      const activeTags = [...tagsList, ...userTags];
 
       const ip = getClientIp(req.headers, req.ip);
       let iso = '';
@@ -244,9 +279,12 @@ export async function createServer({
       const euRules = isEU ? RULE_PRESETS['EU'] ?? [] : [];
       const countryRules = RULE_PRESETS[iso] ?? RULE_PRESETS['DEFAULT'] ?? [];
       const tagsRules = activeTags
-        .map((tag) => TAGS_PRESETS[tag])
-        .filter(Boolean)
-        .flat();
+        .flatMap((tag) => {
+          const preset = TAGS_PRESETS[tag];
+          if (!preset) return [];
+          const countryRules = preset.country[iso] ?? preset.default;
+          return [...preset.base, ...countryRules];
+        });
 
       const sameCountryRules: XrayRule[] = [];
       if (iso && directSameCountry) {
