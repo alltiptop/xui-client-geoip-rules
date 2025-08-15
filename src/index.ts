@@ -268,8 +268,20 @@ export async function createServer({
          * like "profile-update-interval" or "subscription-userinfo"
          * to keep original behavior
          */
-        for (const [k, v] of res.headers.entries())
-          if (!['content-length'].includes(k.toLowerCase())) reply.header(k, v);
+
+        const hopByHop = new Set([
+          'connection',
+          'keep-alive',
+          'proxy-authenticate',
+          'proxy-authorization',
+          'te',
+          'trailer',
+          'transfer-encoding',
+          'upgrade',
+        ]);
+        for (const [k, v] of res.headers.entries()) {
+          if (!hopByHop.has(k.toLowerCase())) reply.header(k, v);
+        }
       } catch (err) {
         req.log.error(`Fetch failed: ${err}`);
         return reply.code(502).send({ error: 'bad_gateway' });
