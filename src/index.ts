@@ -108,6 +108,17 @@ function buildDomainRule(tlds: string[]): XrayRule | null {
   return { type: 'field', domain: [pattern], outboundTag: 'direct' };
 }
 
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+export type JsonOptions = {
+  [key: string]: JsonValue;
+}
+
 interface TagPreset {
   base: XrayRule[];
   default: XrayRule[];
@@ -131,6 +142,8 @@ export interface CoreOptions {
   publicURL?: string;
   /** Options for the 3x-ui panel. */
   xuiOptions?: XuiOptions;
+  /** Transform the JSON before sending it to the client. */
+  transform?: (json: JsonOptions) => Promise<JsonOptions> | JsonOptions;
 }
 
 export async function createServer({
@@ -142,6 +155,7 @@ export async function createServer({
   logger = true,
   publicURL,
   xuiOptions,
+  transform,
 }: CoreOptions) {
   const app = Fastify({ logger });
   const RULE_PRESETS: PresetMap = {};
@@ -389,6 +403,16 @@ export async function createServer({
           rules,
         },
       };
+
+      if (transform) {
+        try {
+          const transformed = await transform(merged);
+          reply.send(JSON.stringify(transformed, null, 2));
+        } catch (err) {
+          app.log.error(`Transform failed: ${err}`);
+          reply.send(JSON.stringify(merged, null, 2));
+        }
+      }
 
       reply.send(JSON.stringify(merged, null, 2));
     },

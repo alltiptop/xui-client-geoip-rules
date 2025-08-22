@@ -40,6 +40,14 @@ const app = await createServer({
     inboundIds: [process.env.XUI_INBOUND_ID], // inbounds list for users
     debug: process.env.NODE_ENV !== 'production',
   },
+  // Optional: post-process the final merged JSON before it is sent
+  transform: (json) => {
+    // Example: force warning log level and annotate remarks
+    json.log = json.log || {};
+    json.log.loglevel = 'warning';
+    if (typeof json.remarks === 'string') json.remarks = `${json.remarks} [transformed]`;
+    return json;
+  },
 });
 
 app.listen({ port: 3088, host: '0.0.0.0' });
@@ -157,6 +165,38 @@ rules/
 Each file contains a standard array of Xray `routing.rules` items. At request time, the middleware injects these rules if the visitor’s ISO-3166 country code is not in the exclude list.
 
 Application order: after same-country rules and before regional/country presets (see order above).
+
+---
+
+## Transform hook
+
+You can optionally provide a `transform` function in `createServer` options to modify the final JSON right before it is returned to the client.
+
+Signature:
+
+```ts
+transform?: (json: Record<string, unknown>) => Record<string, unknown> | Promise<Record<string, unknown>>
+```
+
+Notes:
+- Runs after merging upstream config, base/country/tag rules, overrides, reverse presets.
+- If it throws, the original merged JSON is returned and the error is logged.
+- Return the updated object; if you return `undefined`, the previous value is used.
+
+Example:
+
+```ts
+const app = await createServer({
+  // ...other options
+  transform: async (json) => {
+    // Drop stats section and ensure warning log level
+    delete (json as any).stats;
+    json.log = json.log || {};
+    json.log.loglevel = 'warning';
+    return json;
+  },
+});
+```
 
 ---
 
