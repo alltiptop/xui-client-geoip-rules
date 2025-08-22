@@ -79,6 +79,7 @@ rules
 ├ default.json     # Fallback when no country match
 ├ us.json          # Country preset (USA)
 ├ eu.json          # Regional preset (European Union)
+├ !de.json         # Reverse preset, for all except de
 └─ tags/
    └─ streaming/
       ├─ base.json      # always loaded first
@@ -100,8 +101,62 @@ This allows you to keep shared logic in **base** while adding country-specific t
 2. **`base.json`** – Global baseline for everyone.
 3. **Tag presets** – For every active tag: `base.json` → country override (or `default.json`).
 4. **Same-country rules** – If `directSameCountry` is enabled, traffic destined to the client’s own country goes direct.
-5. **Regional preset** – `eu.json` for EU visitors.
-6. **Country preset** – Specific country file (e.g. `us.json`), or `default.json` when none exists.
+5. **Reverse presets (exclude countries)** – Files named like `!fr.json` or `!fr,nl,de.json` (see below).
+6. **Regional preset** – `eu.json` for EU visitors.
+7. **Country preset** – Specific country file (e.g. `us.json`), or `default.json` when none exists.
+
+---
+
+## Reusable snippets with "@include"
+
+You can keep common rule fragments in `rules/includes/*.json` and inline them in any rules file using a special string syntax:
+
+```jsonc
+// rules/includes/de-proxy.json
+{
+  "outboundTag": "direct",
+  "domain": ["domain:de"],
+  "enabled": true
+}
+```
+
+Use it from another file (note the quotes around the include token):
+
+```jsonc
+// rules/default.json
+[
+  "@include de-proxy",
+  {
+    "outboundTag": "proxy",
+    "ip": ["geoip:fr"],
+    "enabled": true,
+    "remarks": "GeoIP FR",
+    "type": "field"
+  }
+]
+```
+
+Details:
+- Place files under `rules/includes/`.
+- Syntax: `"@include <name>"` or `"@include <name>.json"`.
+- Includes are expanded recursively; circular references are ignored.
+- Missing includes are replaced with `{}` (no-op object) to keep JSON valid.
+
+---
+
+## Reverse presets (exclude countries)
+
+Sometimes you want a rule-set to apply to everyone except certain countries. Create files in `rules/` whose names start with `!`:
+
+```text
+rules/
+├ !fr.json          # applies to all visitors whose ISO ≠ FR
+└ !fr,nl,de.json    # applies to all visitors whose ISO ∉ {FR, NL, DE}
+```
+
+Each file contains a standard array of Xray `routing.rules` items. At request time, the middleware injects these rules if the visitor’s ISO-3166 country code is not in the exclude list.
+
+Application order: after same-country rules and before regional/country presets (see order above).
 
 ---
 

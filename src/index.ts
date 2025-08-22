@@ -146,6 +146,8 @@ export async function createServer({
   const app = Fastify({ logger });
   const RULE_PRESETS: PresetMap = {};
   const OVERRIDE_PRESETS: PresetMap = {};
+  type ReversePreset = { exclude: Set<string>; rules: XrayRule[]; name: string };
+  const REVERSE_PRESETS: ReversePreset[] = [];
 
   const TAGS_PRESETS: Record<string, TagPreset> = {};
   const { getUserTags } = xuiOptions
@@ -154,16 +156,47 @@ export async function createServer({
       getUserTags: () => '',
     };
 
-  if (existsSync(rulesDir)) {
-    for (const file of readdirSync(rulesDir).filter((f) =>
-      f.endsWith('.json'),
-    )) {
-      const code = parse(file).name.toUpperCase();
+  // Includes support
+  const includesDir = join(rulesDir, 'includes');
+  const expandIncludes = (text: string, seen = new Set<string>()): string => {
+    return text.replace(/"@include\s+([A-Za-z0-9._-]+)"/g, (_m, name: string) => {
+      const fileName = name.endsWith('.json') ? name : `${name}.json`;
+      const fullPath = join(includesDir, fileName);
       try {
-        RULE_PRESETS[code] = JSON.parse(
-          readFileSync(join(rulesDir, file), 'utf8'),
-        );
-        app.log.info(`Loaded rules for ${code}`);
+        if (seen.has(fullPath)) return '{}';
+        if (!existsSync(fullPath)) return '{}';
+        seen.add(fullPath);
+        let content = readFileSync(fullPath, 'utf8');
+        content = expandIncludes(content, seen);
+        seen.delete(fullPath);
+        return content.trim();
+      } catch (err) {
+        app.log.error(`Include failed for ${fullPath}: ${err}`);
+        return '{}';
+      }
+    });
+  };
+  const parseWithIncludes = (filePath: string) => {
+    const raw = readFileSync(filePath, 'utf8');
+    const expanded = expandIncludes(raw);
+    return JSON.parse(expanded);
+  };
+
+  if (existsSync(rulesDir)) {
+    for (const file of readdirSync(rulesDir).filter((f) => f.endsWith('.json'))) {
+      const baseName = parse(file).name;
+      const full = join(rulesDir, file);
+      try {
+        if (baseName.startsWith('!')) {
+          const list = baseName.slice(1).split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+          const rules = parseWithIncludes(full) as XrayRule[];
+          REVERSE_PRESETS.push({ exclude: new Set(list), rules, name: baseName });
+          app.log.info(`Loaded reverse rules ${baseName}`);
+        } else {
+          const code = baseName.toUpperCase();
+          RULE_PRESETS[code] = parseWithIncludes(full);
+          app.log.info(`Loaded rules for ${code}`);
+        }
       } catch (err) {
         app.log.error(`Failed to load ${file}: ${err}`);
       }
@@ -176,9 +209,7 @@ export async function createServer({
     )) {
       const code = parse(file).name.toUpperCase();
       try {
-        OVERRIDE_PRESETS[code] = JSON.parse(
-          readFileSync(join(overridesDir, file), 'utf8'),
-        );
+        OVERRIDE_PRESETS[code] = parseWithIncludes(join(overridesDir, file));
         app.log.info(`Loaded overrides for ${code}`);
       } catch (err) {
         app.log.error(`Failed to load ${file}: ${err}`);
@@ -197,7 +228,7 @@ export async function createServer({
       const baseFile = join(tagPath, 'base.json');
       if (existsSync(baseFile)) {
         try {
-          preset.base = JSON.parse(readFileSync(baseFile, 'utf8'));
+          preset.base = parseWithIncludes(baseFile);
         } catch (err) {
           app.log.error(`Failed to load ${baseFile}: ${err}`);
         }
@@ -206,7 +237,7 @@ export async function createServer({
       const defaultFile = join(tagPath, 'default.json');
       if (existsSync(defaultFile)) {
         try {
-          preset.default = JSON.parse(readFileSync(defaultFile, 'utf8'));
+          preset.default = parseWithIncludes(defaultFile);
         } catch (err) {
           app.log.error(`Failed to load ${defaultFile}: ${err}`);
         }
@@ -217,7 +248,7 @@ export async function createServer({
       )) {
         const code = parse(file).name.toUpperCase();
         try {
-          preset.country[code] = JSON.parse(readFileSync(join(tagPath, file), 'utf8'));
+          preset.country[code] = parseWithIncludes(join(tagPath, file));
         } catch (err) {
           app.log.error(`Failed to load ${file}: ${err}`);
         }
@@ -290,6 +321,9 @@ export async function createServer({
       const baseRules = RULE_PRESETS['BASE'] ?? [];
       const euRules = isEU ? RULE_PRESETS['EU'] ?? [] : [];
       const countryRules = RULE_PRESETS[iso] ?? RULE_PRESETS['DEFAULT'] ?? [];
+      const reverseRules = REVERSE_PRESETS
+        .filter((p) => !p.exclude.has(iso))
+        .flatMap((p) => p.rules);
       const tagsRules = activeTags
         .flatMap((tag) => {
           const preset = TAGS_PRESETS[tag];
@@ -327,6 +361,7 @@ export async function createServer({
         ...baseRules,
         ...tagsRules,
         ...sameCountryRules,
+        ...reverseRules,
         ...euRules,
         ...countryRules,
       ];

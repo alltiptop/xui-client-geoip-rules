@@ -1,22 +1,17 @@
 [
   {
     "domain": [
-      "regexp:.*\\.de$"
+      "domain:nl"
     ],
     "outboundTag": "direct",
     "type": "field"
   },
   {
     "ip": [
-      "geoip:de"
+      "geoip:nl"
     ],
     "outboundTag": "direct",
     "type": "field"
   },
-  {
-    "port": "0-65535",
-    "outboundTag": "proxy",
-    "enabled": true,
-    "remarks": "default proxy"
-  }
+  "@include default-proxy.json"
 ]

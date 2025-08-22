@@ -1,0 +1,10 @@
+[
+  {
+    "outboundTag": "direct",
+    "domain": [
+      "domain:microsoft.com"
+    ],
+    "enabled": true,
+    "remarks": "Microsoft"
+  }
+]

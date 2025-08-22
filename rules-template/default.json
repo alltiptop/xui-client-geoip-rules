@@ -26,10 +26,5 @@
     "enabled": true,
     "remarks": "Private"
   },
-  {
-    "port": "0-65535",
-    "outboundTag": "direct",
-    "enabled": true,
-    "remarks": "default"
-  }
+  "@include default-direct.json"
 ]
