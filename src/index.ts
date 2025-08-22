@@ -176,10 +176,24 @@ export async function createServer({
       }
     });
   };
-  const parseWithIncludes = (filePath: string) => {
+  const flattenRuleArray = (arr: any[]): any[] => {
+    const out: any[] = [];
+    for (const item of arr) {
+      if (Array.isArray(item)) {
+        // Recursively flatten only when an array appears where a rule item is expected
+        out.push(...flattenRuleArray(item));
+      } else {
+        out.push(item);
+      }
+    }
+    return out;
+  };
+  const parseWithIncludes = (filePath: string, expectArray = false) => {
     const raw = readFileSync(filePath, 'utf8');
     const expanded = expandIncludes(raw);
-    return JSON.parse(expanded);
+    const parsed = JSON.parse(expanded);
+    if (expectArray && Array.isArray(parsed)) return flattenRuleArray(parsed);
+    return parsed;
   };
 
   if (existsSync(rulesDir)) {
@@ -189,12 +203,12 @@ export async function createServer({
       try {
         if (baseName.startsWith('!')) {
           const list = baseName.slice(1).split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
-          const rules = parseWithIncludes(full) as XrayRule[];
+          const rules = parseWithIncludes(full, true) as XrayRule[];
           REVERSE_PRESETS.push({ exclude: new Set(list), rules, name: baseName });
           app.log.info(`Loaded reverse rules ${baseName}`);
         } else {
           const code = baseName.toUpperCase();
-          RULE_PRESETS[code] = parseWithIncludes(full);
+          RULE_PRESETS[code] = parseWithIncludes(full, true);
           app.log.info(`Loaded rules for ${code}`);
         }
       } catch (err) {
@@ -209,7 +223,7 @@ export async function createServer({
     )) {
       const code = parse(file).name.toUpperCase();
       try {
-        OVERRIDE_PRESETS[code] = parseWithIncludes(join(overridesDir, file));
+        OVERRIDE_PRESETS[code] = parseWithIncludes(join(overridesDir, file), false);
         app.log.info(`Loaded overrides for ${code}`);
       } catch (err) {
         app.log.error(`Failed to load ${file}: ${err}`);
@@ -228,7 +242,7 @@ export async function createServer({
       const baseFile = join(tagPath, 'base.json');
       if (existsSync(baseFile)) {
         try {
-          preset.base = parseWithIncludes(baseFile);
+          preset.base = parseWithIncludes(baseFile, true);
         } catch (err) {
           app.log.error(`Failed to load ${baseFile}: ${err}`);
         }
@@ -237,7 +251,7 @@ export async function createServer({
       const defaultFile = join(tagPath, 'default.json');
       if (existsSync(defaultFile)) {
         try {
-          preset.default = parseWithIncludes(defaultFile);
+          preset.default = parseWithIncludes(defaultFile, true);
         } catch (err) {
           app.log.error(`Failed to load ${defaultFile}: ${err}`);
         }
@@ -248,7 +262,7 @@ export async function createServer({
       )) {
         const code = parse(file).name.toUpperCase();
         try {
-          preset.country[code] = parseWithIncludes(join(tagPath, file));
+          preset.country[code] = parseWithIncludes(join(tagPath, file), true);
         } catch (err) {
           app.log.error(`Failed to load ${file}: ${err}`);
         }
