@@ -175,7 +175,7 @@ You can optionally provide a `transform` function in `createServer` options to m
 Signature:
 
 ```ts
-transform?: (json: Record<string, unknown>) => Record<string, unknown> | Promise<Record<string, unknown>>
+transform?: (json: Record<string, unknown>, iso: string) => Record<string, unknown> | Promise<Record<string, unknown>>
 ```
 
 Notes:
@@ -188,7 +188,7 @@ Example:
 ```ts
 const app = await createServer({
   // ...other options
-  transform: async (json) => {
+  transform: async (json, iso) => {
     // Drop stats section and ensure warning log level
     delete (json as any).stats;
     json.log = json.log || {};

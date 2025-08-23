@@ -142,8 +142,13 @@ export interface CoreOptions {
   publicURL?: string;
   /** Options for the 3x-ui panel. */
   xuiOptions?: XuiOptions;
-  /** Transform the JSON before sending it to the client. */
-  transform?: (json: JsonOptions) => Promise<JsonOptions> | JsonOptions;
+  /**
+   * Transform the JSON before sending it to the client.
+   * @param json - The JSON object to transform.
+   * @param iso - The ISO code of the country of the requester.
+   * @returns The transformed JSON object.
+   */
+  transform?: (json: JsonOptions, iso: string) => Promise<JsonOptions> | JsonOptions;
 }
 
 export async function createServer({
@@ -406,7 +411,7 @@ export async function createServer({
 
       if (transform) {
         try {
-          const transformed = await transform(merged);
+          const transformed = await transform(merged, iso);
           reply.send(JSON.stringify(transformed, null, 2));
         } catch (err) {
           app.log.error(`Transform failed: ${err}`);
