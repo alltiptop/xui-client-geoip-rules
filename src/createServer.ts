@@ -52,7 +52,7 @@ export async function createServer({
   // Includes support
   const includesDir = join(rulesDir, 'includes');
   const expandIncludes = (text: string, seen = new Set<string>()): string => {
-    return text.replace(/'@include\s+([A-Za-z0-9._-]+)'/g, (_m, name: string) => {
+    return text.replace(/"@include\s+([A-Za-z0-9._-]+)"/g, (_m, name: string) => {
       const fileName = name.endsWith('.json') ? name : `${name}.json`;
       const fullPath = join(includesDir, fileName);
       try {

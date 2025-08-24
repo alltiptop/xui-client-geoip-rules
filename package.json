@@ -1,6 +1,6 @@
 {
   "name": "@alltiptop/geoip-3xui-rules",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Middleware server to set routing rules by countries for XRAY",
   "keywords": [
     "3x-ui",
