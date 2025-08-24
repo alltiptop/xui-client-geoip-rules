@@ -285,7 +285,7 @@ export async function createServer({
 
       if (transform) {
         try {
-          const transformed = await transform(merged, iso);
+          const transformed = await transform(merged, iso, subscriptionId);
           const finalRules = removeDuplicateRules(transformed as JsonOptions);
           reply.send(JSON.stringify(finalRules, null, 2));
         } catch (err) {
