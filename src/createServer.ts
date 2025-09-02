@@ -39,7 +39,7 @@ export async function createServer({
   const app = Fastify({ logger });
   const RULE_PRESETS: PresetMap = {};
   const OVERRIDE_PRESETS: PresetMap = {};
-  type ReversePreset = { exclude: Set<string>; rules: XrayRule[]; name: string };
+  type ReversePreset = { exclude: Set<string>; excludeEU: boolean; rules: XrayRule[]; name: string };
   const REVERSE_PRESETS: ReversePreset[] = [];
 
   const TAGS_PRESETS: Record<string, TagPreset> = {};
@@ -95,9 +95,15 @@ export async function createServer({
       const full = join(rulesDir, file);
       try {
         if (baseName.startsWith('!')) {
-          const list = baseName.slice(1).split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+          const tokens = baseName
+            .slice(1)
+            .split(',')
+            .map((s) => s.trim().toUpperCase())
+            .filter(Boolean);
+          const excludeEU = tokens.includes('EU');
+          const countries = tokens.filter((t) => t !== 'EU');
           const rules = parseWithIncludes(full, true) as XrayRule[];
-          REVERSE_PRESETS.push({ exclude: new Set(list), rules, name: baseName });
+          REVERSE_PRESETS.push({ exclude: new Set(countries), excludeEU, rules, name: baseName });
           app.log.info(`Loaded reverse rules ${baseName}`);
         } else {
           const code = baseName.toUpperCase();
@@ -172,7 +178,11 @@ export async function createServer({
     `/${secretUrl}/json/:subscriptionId`,
     async (req, reply) => {
       const { subscriptionId } = req.params;
-      const { tags } = req.query as { tags?: string[] | string };
+      const { tags, country: countryOverride, isEU: isEUOverride } = req.query as {
+        tags?: string[] | string;
+        country?: string;
+        isEU?: string | boolean;
+      };
 
       const tagsList =
         ((Array.isArray(tags) ? tags : (tags?.split(',') || [])).filter(Boolean) as string[]) ||
@@ -184,15 +194,34 @@ export async function createServer({
 
       const ip = getClientIp(req.headers, req.ip);
       let iso = '';
+      let isEU = false;
       try {
-        iso = (await ipLookup(ip))?.country?.toUpperCase() || '';
+        const countryInfo = await ipLookup(ip);
+        iso = countryInfo?.country?.toUpperCase() || '';
+        isEU = countryInfo?.eu || false;
       } catch (err) {
         req.log.warn(`GeoIP failed for ${ip}: ${err}`);
+      }
+      // Override from query params if provided
+      if (countryOverride && typeof countryOverride === 'string') {
+        const co = countryOverride.toUpperCase();
+        if (co === 'EU') {
+          // Special token: mark as EU region, keep ISO unchanged
+          isEU = true;
+        } else {
+          iso = co;
+        }
+      }
+      if (typeof isEUOverride !== 'undefined') {
+        const val =
+          typeof isEUOverride === 'boolean'
+            ? isEUOverride
+            : /^(1|true|yes|on)$/i.test(String(isEUOverride));
+        isEU = Boolean(val);
       }
       if (iso) USERS_COUNTRY_CACHE.set(subscriptionId, iso);
       if (!iso && USERS_COUNTRY_CACHE.has(subscriptionId))
         iso = USERS_COUNTRY_CACHE.get(subscriptionId) || '';
-      const isEU = iso === 'EU';
 
       let original: any;
       try {
@@ -229,7 +258,7 @@ export async function createServer({
       const euRules = isEU ? RULE_PRESETS['EU'] ?? [] : [];
       const countryRules = RULE_PRESETS[iso] ?? RULE_PRESETS['DEFAULT'] ?? [];
       const reverseRules = REVERSE_PRESETS
-        .filter((p) => !p.exclude.has(iso))
+        .filter((p) => (!p.excludeEU || !isEU) && !p.exclude.has(iso))
         .flatMap((p) => p.rules);
       const tagsRules = activeTags
         .flatMap((tag) => {
@@ -285,17 +314,17 @@ export async function createServer({
 
       if (transform) {
         try {
-          const transformed = await transform(merged, iso, subscriptionId);
+          const transformed = await transform(merged, iso, subscriptionId, isEU);
           const finalRules = removeDuplicateRules(transformed as JsonOptions);
-          reply.send(JSON.stringify(finalRules, null, 2));
+          return reply.send(JSON.stringify(finalRules, null, 2));
         } catch (err) {
           app.log.error(`Transform failed: ${err}`);
           const finalRules = removeDuplicateRules(merged as JsonOptions);
-          reply.send(JSON.stringify(finalRules, null, 2));
+          return reply.send(JSON.stringify(finalRules, null, 2));
         }
       }
 
-      reply.send(JSON.stringify(merged, null, 2));
+      return reply.send(JSON.stringify(merged, null, 2));
     },
   );
 

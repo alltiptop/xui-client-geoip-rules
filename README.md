@@ -87,7 +87,8 @@ rules
 ├ default.json     # Fallback when no country match
 ├ us.json          # Country preset (USA)
 ├ eu.json          # Regional preset (European Union)
-├ !de.json         # Reverse preset, for all except de
+├ !de.json         # Reverse preset, applies to everyone except DE
+├ !eu.json         # Reverse preset, applies to everyone NOT in the EU (isEU === false)
 └─ tags/
    └─ streaming/
       ├─ base.json      # always loaded first
@@ -159,12 +160,28 @@ Sometimes you want a rule-set to apply to everyone except certain countries. Cre
 ```text
 rules/
 ├ !fr.json          # applies to all visitors whose ISO ≠ FR
-└ !fr,nl,de.json    # applies to all visitors whose ISO ∉ {FR, NL, DE}
+├ !fr,nl,de.json    # applies to all visitors whose ISO ∉ {FR, NL, DE}
+└ !eu.json          # applies to all visitors NOT in the EU (special token 'EU')
 ```
 
 Each file contains a standard array of Xray `routing.rules` items. At request time, the middleware injects these rules if the visitor’s ISO-3166 country code is not in the exclude list.
 
 Application order: after same-country rules and before regional/country presets (see order above).
+
+---
+
+## Country overrides via query params
+
+You can override the detected country/EU status for testing or custom routing by passing query parameters to the JSON endpoint:
+
+```text
+?country=DE&isEU=true
+```
+
+- `country` – ISO-3166 alpha-2 code (case-insensitive), e.g. `de`, `US`.
+- `isEU` – boolean accepted values: `true|false|1|0|yes|no|on|off`.
+
+When provided, these values override the result from IP geolocation for the current request only.
 
 ---
 
@@ -175,7 +192,12 @@ You can optionally provide a `transform` function in `createServer` options to m
 Signature:
 
 ```ts
-transform?: (json: Record<string, unknown>, iso: string) => Record<string, unknown> | Promise<Record<string, unknown>>
+transform?: (
+  json: Record<string, unknown>,
+  iso: string,
+  subId: string,
+  isEU?: boolean,
+) => Record<string, unknown> | Promise<Record<string, unknown>>
 ```
 
 Notes:
@@ -188,11 +210,12 @@ Example:
 ```ts
 const app = await createServer({
   // ...other options
-  transform: async (json, iso) => {
+  transform: async (json, iso, isEU) => {
     // Drop stats section and ensure warning log level
     delete (json as any).stats;
     json.log = json.log || {};
     json.log.loglevel = 'warning';
+    json.remarks = `${json.remarks || ''} [iso:${iso || '??'} eu:${Boolean(isEU)}]`;
     return json;
   },
 });

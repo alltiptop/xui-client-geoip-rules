@@ -51,7 +51,8 @@ export interface CreateServerProps {
    * @param json - The JSON object to transform.
    * @param iso - The ISO code of the country of the requester.
    * @param subId - The subscription ID of the requester.
+   * @param isEU - Whether the requester is in the Europe Union.
    * @returns The transformed JSON object.
    */
-  transform?: (json: JsonOptions, iso: string, subId: string) => Promise<JsonOptions> | JsonOptions;
+  transform?: (json: JsonOptions, iso: string, subId: string, isEU: boolean) => Promise<JsonOptions> | JsonOptions;
 }
