@@ -276,6 +276,7 @@ export async function createServer({
           type: 'field',
           ip: [`geoip:${iso.toLowerCase()}`],
           outboundTag: 'direct',
+          remarks: 'directSameCountry',
         });
       }
 
@@ -288,6 +289,7 @@ export async function createServer({
               type: 'field',
               domain: [`domain:${publicURL}`],
               outboundTag: 'direct',
+              remarks: 'directSameCountry',
             },
           ]
         : [];

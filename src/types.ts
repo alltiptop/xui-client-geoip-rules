@@ -14,6 +14,7 @@ export interface XrayRule {
   ip?: string[];
   domain?: string[];
   outboundTag: string;
+  remarks?: string;
 }
 
 export interface XuiOptions {
