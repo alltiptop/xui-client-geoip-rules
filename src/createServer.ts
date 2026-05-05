@@ -289,7 +289,6 @@ export async function createServer({
               type: 'field',
               domain: [`domain:${publicURL}`],
               outboundTag: 'direct',
-              remarks: 'directSameCountry',
             },
           ]
         : [];
