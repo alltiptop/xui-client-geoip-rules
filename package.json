@@ -40,9 +40,8 @@
   },
   "dependencies": {
     "3x-ui": "^2.1.1",
-    "chalk": "^5.4.1",
-    "fastify": "^5.4.0",
-    "ip-location-api": "^3.0.3",
+    "fastify": "^5.8.5",
+    "ip-location-api": "^4.0.4",
     "punycode": "^2.3.1",
     "world-countries": "^5.1.0"
   },
