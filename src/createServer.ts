@@ -10,7 +10,7 @@ import { get3xui } from './utils/get3xui.js';
 import { getClientIp } from './utils/getClientIp.js';
 import { buildDomainRule } from './utils/buildDomainRule.js';
 
-import type { JsonOptions, XrayRule, CreateServerProps } from './types.js';
+import type { JsonOptions, XrayRule, CreateServerProps, QueryType } from './types.js';
 
 /**
  * Cache for last country lookup to each user
@@ -177,12 +177,9 @@ export async function createServer({
   app.get<{ Params: { subscriptionId: string } }>(
     `/${secretUrl}/json/:subscriptionId`,
     async (req, reply) => {
+      const query = req.query as QueryType;
       const { subscriptionId } = req.params;
-      const { tags, country: countryOverride, isEU: isEUOverride } = req.query as {
-        tags?: string[] | string;
-        country?: string;
-        isEU?: string | boolean;
-      };
+      const { tags, country: countryOverride, isEU: isEUOverride } = query;
 
       const tagsList =
         ((Array.isArray(tags) ? tags : (tags?.split(',') || [])).filter(Boolean) as string[]) ||
@@ -315,7 +312,13 @@ export async function createServer({
 
       if (transform) {
         try {
-          const transformed = await transform(merged, iso, subscriptionId, isEU);
+          const transformed = await transform({
+            json: merged,
+            iso,
+            subId: subscriptionId,
+            isEU,
+            query,
+          });
           const finalRules = removeDuplicateRules(transformed as JsonOptions);
           return reply.send(JSON.stringify(finalRules, null, 2));
         } catch (err) {

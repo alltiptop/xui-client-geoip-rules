@@ -30,6 +30,16 @@ export interface XuiOptions {
   debug?: boolean;
 }
 
+export type QueryType = Record<string, string | string[] | undefined>;
+
+export interface TransformProps {
+  json: JsonOptions,
+  iso: string,
+  subId: string,
+  isEU: boolean,
+  query?: QueryType,
+}
+
 export interface CreateServerProps {
   /** URL of the upstream 3x-ui endpoint (without trailing slash). */
   upstreamUrl: string;
@@ -49,11 +59,12 @@ export interface CreateServerProps {
   xuiOptions?: XuiOptions;
   /**
    * Transform the JSON before sending it to the client.
-   * @param json - The JSON object to transform.
-   * @param iso - The ISO code of the country of the requester.
-   * @param subId - The subscription ID of the requester.
-   * @param isEU - Whether the requester is in the Europe Union.
+   * @param {Object} props.json - The JSON object to transform.
+   * @param {String} props.iso - The ISO code of the country of the requester.
+   * @param {String} props.subId - The subscription ID of the requester.
+   * @param {Boolean} props.isEU - Whether the requester is in the Europe Union.
+   * @param {Object} props.query - Query params for subscription
    * @returns The transformed JSON object.
    */
-  transform?: (json: JsonOptions, iso: string, subId: string, isEU: boolean) => Promise<JsonOptions> | JsonOptions;
+  transform?: (props: TransformProps) => Promise<JsonOptions> | JsonOptions;
 }

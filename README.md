@@ -41,7 +41,7 @@ const app = await createServer({
     debug: process.env.NODE_ENV !== 'production',
   },
   // Optional: post-process the final merged JSON before it is sent
-  transform: (json) => {
+  transform: ({ json }) => {
     // Example: force warning log level and annotate remarks
     json.log = json.log || {};
     json.log.loglevel = 'warning';
@@ -192,12 +192,13 @@ You can optionally provide a `transform` function in `createServer` options to m
 Signature:
 
 ```ts
-transform?: (
+transform?: ({
   json: Record<string, unknown>,
   iso: string,
   subId: string,
   isEU?: boolean,
-) => Record<string, unknown> | Promise<Record<string, unknown>>
+  query?: Record<string, string | string[] | undefined>,
+}) => Record<string, unknown> | Promise<Record<string, unknown>>
 ```
 
 Notes:
@@ -210,7 +211,7 @@ Example:
 ```ts
 const app = await createServer({
   // ...other options
-  transform: async (json, iso, isEU) => {
+  transform: async ({ json, iso, isEU }) => {
     // Drop stats section and ensure warning log level
     delete (json as any).stats;
     json.log = json.log || {};
