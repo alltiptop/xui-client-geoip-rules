@@ -1,15 +1,42 @@
 import type { JsonOptions, XrayRule } from '../types.js';
 
+const normalizeRuleField = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return JSON.stringify([...value].sort());
+  }
+
+  if (value && typeof value === 'object') {
+    return JSON.stringify(value);
+  }
+
+  return JSON.stringify(value ?? null);
+};
+
 export const removeDuplicateRules = (json: JsonOptions) => {
   const rules = (json.routing as JsonOptions)?.rules as unknown as XrayRule[];
 
   if (!rules) return json;
 
-  const seenRules = new Set();
+  const inbounds: Record<string, Set<string | number>> = {
+    default: new Set(),
+  };
   const finalRules: XrayRule[] = [];
 
   for (const originalRule of rules) {
     const rule = JSON.parse(JSON.stringify(originalRule));
+    const dedupeKey = [
+      ['inboundTag', rule.inboundTag],
+      ['user', rule.user],
+      ['port', rule.port],
+      ['localPort', rule.localPort],
+      ['vlessRoute', rule.vlessRoute],
+      ['process', rule.process],
+      ['localIP', rule.localIP],
+      ['network', rule.network],
+    ]
+      .map(([key, value]) => `${key}:${normalizeRuleField(value)}`)
+      .join('|');
+    const seenRules = inbounds[dedupeKey] || (inbounds[dedupeKey] = new Set());
 
     const hadDomains = Array.isArray(rule.domain);
     const hadIps = Array.isArray(rule.ip);
