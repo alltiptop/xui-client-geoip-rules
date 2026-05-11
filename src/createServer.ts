@@ -312,13 +312,16 @@ export async function createServer({
 
       if (transform) {
         try {
-          const transformed = await transform({
+          const { transformed, headers } = await transform({
             json: merged,
             iso,
             subId: subscriptionId,
             isEU,
             query,
           });
+          for (const headerName in headers) {
+            reply.header(headerName, headers[headerName]);
+          }
           const finalRules = removeDuplicateRules(transformed as JsonOptions);
           return reply.send(JSON.stringify(finalRules, null, 2));
         } catch (err) {

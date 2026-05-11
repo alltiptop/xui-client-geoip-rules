@@ -40,6 +40,11 @@ export interface TransformProps {
   query?: QueryType,
 }
 
+export interface TransformResponse {
+  transformed: JsonOptions,
+  headers: Record<string, string>,
+}
+
 export interface CreateServerProps {
   /** URL of the upstream 3x-ui endpoint (without trailing slash). */
   upstreamUrl: string;
@@ -66,5 +71,5 @@ export interface CreateServerProps {
    * @param {Object} props.query - Query params for subscription
    * @returns The transformed JSON object.
    */
-  transform?: (props: TransformProps) => Promise<JsonOptions> | JsonOptions;
+  transform?: (props: TransformProps) => Promise<TransformResponse>;
 }
