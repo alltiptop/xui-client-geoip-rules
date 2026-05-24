@@ -20,12 +20,10 @@ export interface XrayRule {
 export interface XuiOptions {
   /** URL of the upstream 3x-ui endpoint (without trailing slash). */
   panelAddress: string;
-  /** Username of the 3x-ui panel. */
-  username: string;
-  /** Password of the 3x-ui panel. */
-  password: string;
-  /** Intbound ID of the 3x-ui panel. */
-  inboundIds: number[];
+  /** API Token of the 3x-ui panel. */
+  token: string;
+  /** Inbound IDs of the 3x-ui panel. */
+  inboundIds: Array<number | string>;
   /** Debug mode. */
   debug?: boolean;
 }

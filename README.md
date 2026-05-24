@@ -35,8 +35,7 @@ const app = await createServer({
   logger: process.env.NODE_ENV !== 'production'
   xuiOptions: {                               // Opional settings for 3x-ui panel api
     panelAddress: process.env.XUI_PANEL_URL,  // 3x-ui panel address
-    username: process.env.XUI_PANEL_LOGIN,    // 3x-ui login
-    password: process.env.XUI_PANEL_PASSWORD, // 3x-ui password
+    token: process.env.XUI_PANEL_TOKEN, // 3x-ui API token
     inboundIds: [process.env.XUI_INBOUND_ID], // inbounds list for users
     debug: process.env.NODE_ENV !== 'production',
   },
