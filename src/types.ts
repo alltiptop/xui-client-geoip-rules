@@ -36,6 +36,7 @@ export interface TransformProps {
   subId: string,
   isEU: boolean,
   query?: QueryType,
+  requestHeaders?: Record<string, string | string[] | undefined>,
 }
 
 export interface TransformResponse {
@@ -67,6 +68,7 @@ export interface CreateServerProps {
    * @param {String} props.subId - The subscription ID of the requester.
    * @param {Boolean} props.isEU - Whether the requester is in the Europe Union.
    * @param {Object} props.query - Query params for subscription
+   * @param {Object} props.requestHeaders - Original request headers params
    * @returns The transformed JSON object.
    */
   transform?: (props: TransformProps) => Promise<TransformResponse>;

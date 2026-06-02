@@ -318,6 +318,7 @@ export async function createServer({
             subId: subscriptionId,
             isEU,
             query,
+            requestHeaders: req.headers,
           });
           for (const headerName in headers) {
             reply.header(headerName, headers[headerName]);
